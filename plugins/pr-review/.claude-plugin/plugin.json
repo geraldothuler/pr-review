@@ -1,0 +1,12 @@
+{
+  "name": "pr-review",
+  "version": "1.0.0",
+  "description": "PR review com verificação profunda antes de concluir: 4 provas por finding (existência, alcançabilidade, contrato, discriminação), dedup dos 3 endpoints de comentário, e veredito assertivo (approve / request changes). Inclui hook que bloqueia publicação sem confirmação explícita.",
+  "category": "engenharia",
+  "tags": [
+    "code-review",
+    "pull-request",
+    "verification",
+    "quality"
+  ]
+}
