@@ -2,11 +2,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|PowerShell",
         "hooks": [
           {
             "type": "command",
-            "command": "bash ${CLAUDE_PLUGIN_ROOT}/scripts/preflight-review.sh",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/preflight-review.sh\"",
             "statusMessage": "preflight-review: validando publicação em PR..."
           }
         ]
