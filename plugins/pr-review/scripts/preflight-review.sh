@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # preflight-review.sh — gate de confirmação para posts em PR.
 #
-# PreToolUse hook (matcher Bash): intercepta comandos que publicam algo num PR e
+# PreToolUse hook (matcher Bash|PowerShell): intercepta comandos que publicam algo num PR e
 # bloqueia (exit 2 + decision:block) salvo override explícito via CLAUDE_REVIEW_APPROVED=1.
 #
 # Cobre os 4 caminhos de publicação — os dois últimos costumam ficar de fora:
@@ -13,20 +13,30 @@
 # Idempotente e stateless: só lê o comando, nunca escreve.
 
 stdin=$(cat)
-cmd=$(echo "$stdin" | jq -r '.tool_input.command // ""' 2>/dev/null)
+# No Windows o Claude Code expõe duas tools de terminal, Bash e PowerShell, e ambas
+# rodam `gh`. O nome do campo do comando pode variar por tool — aceitar os aliases.
+cmd=$(echo "$stdin" | jq -r '.tool_input.command // .tool_input.script // .tool_input.cmd // ""' 2>/dev/null)
 [ -z "$cmd" ] && exit 0
 
-# Permite opt-in via prefixo inline (`CLAUDE_REVIEW_APPROVED=1 gh pr review ...`),
-# sem depender do env do processo pai.
+# A sintaxe de env var inline difere entre as duas tools, então a dica de retry
+# precisa sair no dialeto de quem chamou.
+tool=$(echo "$stdin" | jq -r '.tool_name // "Bash"' 2>/dev/null)
+
+# Permite opt-in via prefixo inline — `CLAUDE_REVIEW_APPROVED=1 gh pr review ...` no Bash,
+# `$env:CLAUDE_REVIEW_APPROVED='1'; gh pr review ...` no PowerShell — sem depender do env
+# do processo pai. O `tr` remove as aspas e o `;` que a forma do PowerShell carrega.
 if [ -z "${CLAUDE_REVIEW_APPROVED:-}" ]; then
   CLAUDE_REVIEW_APPROVED=$(echo "$cmd" \
-    | grep -oE '(^|[[:space:]])CLAUDE_REVIEW_APPROVED=[^[:space:]]+' \
-    | head -1 | sed -E 's/.*CLAUDE_REVIEW_APPROVED=//')
+    | grep -oE '(^|[[:space:]])(\$env:)?CLAUDE_REVIEW_APPROVED=[^[:space:]]+' \
+    | head -1 | sed -E 's/.*CLAUDE_REVIEW_APPROVED=//' | tr -d "'\";")
 fi
 
+# jq (já exigido acima) em vez de python3: trata UTF-8 corretamente — o stdin do Python
+# no Windows assume cp1252 e devolve o texto acentuado duplamente codificado — e não
+# adiciona dependência que o Git Bash pode não ter.
 block() {
   local reason="$1"
-  echo "{\"decision\":\"block\",\"reason\":$(printf '%s' "$reason" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}"
+  echo "{\"decision\":\"block\",\"reason\":$(printf '%s' "$reason" | jq -Rs .)}"
   exit 2
 }
 
@@ -50,6 +60,11 @@ echo "$cmd" | grep -qE "$review_or_merge" && matched="gh pr review/merge"
 
 if [ -n "$matched" ]; then
   if [ "${CLAUDE_REVIEW_APPROVED:-0}" != "1" ]; then
+    if [ "$tool" = "PowerShell" ]; then
+      retry="\$env:CLAUDE_REVIEW_APPROVED='1'; $cmd"
+    else
+      retry="CLAUDE_REVIEW_APPROVED=1 $cmd"
+    fi
     block "🛑 preflight-review: publicação em PR bloqueada sem confirmação explícita do usuário.
 
 Caminho detectado: $matched
@@ -62,7 +77,7 @@ Antes de publicar, refaça o inventário de comentários — pode ter entrado co
 
 Review submetido não pode ser deletado (a API responde 422) — duplicata é permanente.
 
-Após confirmação, rodar com: CLAUDE_REVIEW_APPROVED=1 $cmd"
+Após confirmação, rodar com: $retry"
   fi
 fi
 

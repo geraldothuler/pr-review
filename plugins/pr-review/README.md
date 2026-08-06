@@ -35,11 +35,23 @@ Cada finding sai como **CONFIRMADO**, **SUSPEITA** (dizendo qual prova falta) ou
 /plugin install pr-review@<marketplace>
 ```
 
+Requisitos: `bash` e `jq`. No Windows, o Git Bash atende — o gate cobre as duas tools de terminal (`Bash` e `PowerShell`) e a dica de retry sai no dialeto de quem chamou.
+
 Verificar que o gate está ativo:
 
 ```bash
 gh pr comment 1 --repo <org>/<repo> --body teste   # deve ser bloqueado
 ```
+
+Se em vez do bloqueio aparecer `PreToolUse:Bash hook error` com `No such file or directory`, o hook não está rodando — o gate está inerte, não ativo.
+
+## Testes
+
+```bash
+bash plugins/pr-review/tests/preflight-review.test.sh
+```
+
+Rodar em **bash**, não em zsh: o caso do caminho de instalação com espaço depende do word-splitting do bash, e em zsh passa por engano.
 
 ## Uso
 
@@ -65,7 +77,8 @@ Rodar a de domínio para levantar candidatos, e esta a partir do passo 5 para ve
 ```
 pr-review/
 ├── .claude-plugin/plugin.json
-├── hooks/hooks.json                  # PreToolUse → Bash
+├── hooks/hooks.json                  # PreToolUse → Bash|PowerShell
 ├── scripts/preflight-review.sh       # gate dos 4 caminhos de publicação
+├── tests/preflight-review.test.sh    # 11 casos sobre o gate
 └── skills/pr-review/SKILL.md         # o fluxo de 8 passos
 ```
