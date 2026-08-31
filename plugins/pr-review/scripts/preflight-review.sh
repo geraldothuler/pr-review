@@ -43,19 +43,29 @@ block() {
 # --- 1 e 2: review submetido / merge ---
 review_or_merge='\bgh[[:space:]]+pr[[:space:]]+(review[^|;&]*--(approve|request-changes|comment)|merge)\b'
 
-# --- 3: POST na API de comments/reviews do PR ---
-api_post='\bgh[[:space:]]+api\b[^|;&]*(-X[[:space:]]+POST|--method[[:space:]]+POST)[^|;&]*pulls/[0-9]+/(comments|reviews)\b'
-
-# --- 3b: POST sem -X explícito (gh api usa POST quando há -f/-F) ---
-api_field='\bgh[[:space:]]+api\b[^|;&]*pulls/[0-9]+/(comments|reviews)\b[^|;&]*(-f|-F|--field|--raw-field)[[:space:]]'
+# --- 3: escrita na API de comments/reviews do PR ---
+#
+# Endpoint e intenção de escrita são casados SEPARADAMENTE, de propósito. Um regex único
+# fixa a ordem, e `gh` aceita as flags antes ou depois do endpoint: a versão anterior
+# exigia `--method POST` ANTES do path e deixava passar
+# `gh api repos/o/r/pulls/12/reviews --method POST --input review.json` — exatamente a
+# forma que o passo 8 do SKILL.md recomenda para criar o review pendente.
+#
+# `--input` conta como escrita: é como o corpo do review pendente é enviado, e ele não
+# usa -f/-F. Leitura (`--paginate`, `--jq`) não casa nenhuma das duas e passa.
+api_endpoint='\bgh[[:space:]]+api\b.*pulls/[0-9]+/(comments|reviews)\b'
+api_write='(^|[[:space:]])(-X[[:space:]]+POST|--method[[:space:]=]+POST|-f|-F|--field|--raw-field|--input)([[:space:]]|=|$)'
 
 # --- 4: comentário plano ---
 pr_comment='\bgh[[:space:]]+pr[[:space:]]+comment\b'
 
 matched=""
 echo "$cmd" | grep -qE "$review_or_merge" && matched="gh pr review/merge"
-[ -z "$matched" ] && echo "$cmd" | grep -qE "$api_post"   && matched="gh api POST pulls/N/comments|reviews"
-[ -z "$matched" ] && echo "$cmd" | grep -qE "$api_field"  && matched="gh api pulls/N/comments|reviews (campos -f/-F)"
+if [ -z "$matched" ] \
+   && echo "$cmd" | grep -qE "$api_endpoint" \
+   && echo "$cmd" | grep -qE "$api_write"; then
+  matched="gh api escrevendo em pulls/N/comments|reviews"
+fi
 [ -z "$matched" ] && echo "$cmd" | grep -qE "$pr_comment" && matched="gh pr comment"
 
 if [ -n "$matched" ]; then
@@ -76,6 +86,8 @@ Antes de publicar, refaça o inventário de comentários — pode ter entrado co
   gh api repos/<org>/<repo>/pulls/<n>/reviews   --paginate
 
 Review submetido não pode ser deletado (a API responde 422) — duplicata é permanente.
+Comentário inline postado um a um cria um objeto review COMMENTED por comentário: use
+review PENDING com o array 'comments' inteiro e um único submit.
 
 Após confirmação, rodar com: $retry"
   fi
