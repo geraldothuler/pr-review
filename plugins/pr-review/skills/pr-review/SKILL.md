@@ -218,9 +218,14 @@ Refazer o inventário do passo 1 antes de publicar — pode ter entrado comentá
 ```bash
 SHA=$(gh pr view <num> --repo <org>/<repo> --json headRefOid -q .headRefOid)
 
-cat > /tmp/review-<num>.json <<'JSON'
+# Identificador desta execução. O payload NÃO pode ser nomeado só pelo PR: um retry, ou
+# dois drafts do mesmo PR, sobrescrevem o arquivo um do outro e você submete o corpo errado.
+RUN="<num>-$(date +%s)-$$"
+BODY="${TMPDIR:-/tmp}/review-body-$RUN.json"
+PAYLOAD="${TMPDIR:-/tmp}/review-$RUN.json"
+
+cat > "$BODY" <<'JSON'
 {
-  "commit_id": "SHA_PLACEHOLDER",
   "body": "<resumo — o veredito e a razão que decidiu>",
   "comments": [
     {
@@ -233,8 +238,12 @@ cat > /tmp/review-<num>.json <<'JSON'
 }
 JSON
 
+# O heredoc é literal ('JSON' entre aspas), então o SHA entra depois — por jq, não por
+# `sed -i`, cuja sintaxe diverge entre BSD e GNU.
+jq --arg sha "$SHA" '.commit_id = $sha' "$BODY" > "$PAYLOAD"
+
 REVIEW_ID=$(CLAUDE_REVIEW_APPROVED=1 gh api repos/<org>/<repo>/pulls/<num>/reviews \
-  --method POST --input /tmp/review-<num>.json --jq .id)
+  --method POST --input "$PAYLOAD" --jq .id)
 ```
 
 **2. Conferir antes de submeter** — ler o pendente de volta e checar cada `line`/`side` contra a posição real do hunk (`gh pr diff <num>`). Errado se deleta e refaz; depois do submit, não.
