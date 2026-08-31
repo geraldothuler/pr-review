@@ -8,13 +8,14 @@
     {
       "name": "pr-review",
       "source": "./plugins/pr-review",
-      "description": "PR review com verificação profunda antes de concluir: 4 provas por finding (existência, alcançabilidade, contrato, discriminação), dedup dos 3 endpoints de comentário, e veredito assertivo (approve / request changes). Inclui hook que bloqueia publicação sem confirmação explícita.",
+      "description": "PR review com verificação profunda antes de concluir: 4 provas por finding (existência, alcançabilidade, contrato, discriminação), ledger de evidência, fix implementado e validado na infra local do próprio repo antes de virar proposta, dedup dos 3 endpoints de comentário, post via review PENDING com submit único, e veredito assertivo (approve / request changes). Inclui hook que bloqueia publicação sem confirmação explícita.",
       "category": "engenharia",
       "tags": [
         "code-review",
         "pull-request",
         "verification",
-        "quality"
+        "quality",
+        "local-validation"
       ]
     }
   ]

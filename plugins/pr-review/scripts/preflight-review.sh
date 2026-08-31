@@ -76,6 +76,8 @@ Antes de publicar, refaça o inventário de comentários — pode ter entrado co
   gh api repos/<org>/<repo>/pulls/<n>/reviews   --paginate
 
 Review submetido não pode ser deletado (a API responde 422) — duplicata é permanente.
+Comentário inline postado um a um cria um objeto review COMMENTED por comentário: use
+review PENDING com o array 'comments' inteiro e um único submit.
 
 Após confirmação, rodar com: $retry"
   fi

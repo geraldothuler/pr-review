@@ -1,17 +1,18 @@
 ---
 name: pr-review
-description: PR code review com verificação profunda antes de concluir — 4 provas por finding contra o codebase, a doc do framework e os serviços tocados, dedup dos 3 endpoints de comentário, e veredito assertivo (approve / request changes). Nunca publica sem confirmação explícita. Use quando pedirem "review PR", "/pr-review", "revisa o PR #X", ou antes de aprovar/comentar um PR.
+description: PR code review com verificação profunda antes de concluir — 4 provas por finding contra o codebase, a doc do framework e os serviços tocados, ledger de evidência, fix implementado e validado na infra local do próprio repo, proposta sempre como suggestion, dedup dos 3 endpoints de comentário, e veredito assertivo (approve / request changes). Nunca publica sem confirmação explícita. Use quando pedirem "review PR", "/pr-review", "revisa o PR #X", ou antes de aprovar/comentar um PR.
 user-invocable: true
 ---
 
 # /pr-review — verificar antes de concluir
 
-Review de PR em que **cada finding precisa de prova** e o resultado é **uma decisão**, não uma lista.
+Review de PR em que **cada finding precisa de prova**, **cada fix é rodado antes de ser proposto**, e o resultado é **uma decisão**, não uma lista.
 
-Duas coisas que a maioria dos fluxos de review não faz, e que são o propósito desta skill:
+Três coisas que a maioria dos fluxos de review não faz, e que são o propósito desta skill:
 
 1. **Derrubar o falso positivo** — um finding plausível e errado custa mais que um finding a menos.
-2. **Concluir** — todo review termina em APPROVE ou REQUEST CHANGES, com a razão que decidiu.
+2. **Provar o fix** — sugestão que nunca rodou é palpite com formatação de código.
+3. **Concluir** — todo review termina em APPROVE ou REQUEST CHANGES, com a razão que decidiu.
 
 ## O que esta skill não faz
 
@@ -27,12 +28,14 @@ Ordem sugerida quando ambas existem: rodar a de domínio para levantar candidato
 1. **NUNCA** publique comentário, review ou aprovação sem confirmação explícita do usuário. Gatilhos aceitos: `post it`, `posta`, `LGTM`, `aprovado`, `manda`, `pode postar`. Qualquer outra coisa → perguntar
 2. **NUNCA** submeta review antes da confirmação. As flags que submetem são `--approve`, `--request-changes` e `--comment` (não existe `--submit` no `gh pr review`) — todas as três são gated
 3. **NUNCA** duplique finding já levantado por outro revisor — bot ou humano, sem whitelist
-4. **NUNCA** invente finding — todo finding precisa de `path:line` lido e das 4 provas do passo 5
+4. **NUNCA** invente finding — todo finding precisa de `path:line` lido, das 4 provas do passo 5 e de linha no ledger do passo 5b
 5. **NUNCA** inclua seção procedural genérica (deploy guide, cleanup notes) — só se o PR for sobre isso
 6. **SEMPRE** termine com veredito explícito (`APPROVE` / `REQUEST CHANGES` / `APPROVE SE` / `Sem veredito`)
 7. **NUNCA** entregue finding com hedge. Sem prova → é SUSPEITA declarada, ou não existe
 8. **NUNCA** trate rótulo como veredito: `CodeRabbit: pass`, `checks green`, `0 findings` podem ser review skipado, rate limit ou check não registrado. Abrir o conteúdo
-9. Use `gh` CLI autenticado, nunca API anônima
+9. **NUNCA** proponha fix em prosa. Ou bloco `suggestion`, ou bloco de código com âncora — ver passo 8
+10. **NUNCA** faça commit ou push na branch do PR de outra pessoa. O fix validado vive no worktree local; o que vai pro PR é a proposta
+11. Use `gh` CLI autenticado, nunca API anônima
 
 ## Fluxo
 
@@ -107,6 +110,21 @@ Classificar:
 
 Proibido no draft: "provavelmente", "deve estar", "parece que", "deveria". Se a frase precisa de hedge, é SUSPEITA — ou não existe.
 
+### Passo 5b — Ledger de evidência (gate contra inferência)
+
+As 4 provas dizem **o que** provar. O ledger é o artefato que prova que a prova **rodou**. Montar antes do draft, uma linha por finding e prova:
+
+| Finding | Prova | Comando ou leitura executada | Trecho do output |
+|---|---|---|---|
+| `path/file:42` | P2 | `grep -rn "processEvent(" --include=*.kt` | `handler/Router.kt:88: processEvent(evt)` |
+
+Regras:
+
+- **Sem linha no ledger, o finding não entra no draft — e não vira SUSPEITA, some.** SUSPEITA é a saída para prova que faltou *declaradamente*; inferência silenciosa não tem saída.
+- "Li o arquivo" não é linha de ledger. A linha cita **o que foi lido e o que aquilo mostrou**.
+- Prova cujo output contradiz o finding derruba o finding na hora — vai pra DESCARTADO com o trecho.
+- O ledger fica no rascunho de trabalho. No draft publicável entra só a coluna de evidência, resumida por finding.
+
 ### Passo 6 — Draft + veredito
 
 Só CONFIRMADO e SUSPEITA entram. Cada linha carrega a evidência que a sustenta.
@@ -118,7 +136,7 @@ Só CONFIRMADO e SUSPEITA entram. Cada linha carrega a evidência que a sustenta
 <uma frase com a razão que decide — não um resumo>
 
 ### 🔴 Bloqueadores
-- `path/file:42` — <problema>. <fix>. Evidência: <o que foi lido/rodado>
+- `path/file:42` — <problema>. <fix>. Evidência: <o que foi lido/rodado>. Fix validado: <sim, ver passo 6b | n/a>
 
 ### 🟠 Importantes
 - `path/file:88` — <problema>. <fix>. Evidência: <...>
@@ -133,13 +151,13 @@ Só CONFIRMADO e SUSPEITA entram. Cada linha carrega a evidência que a sustenta
 - <serviço/consumidor/config/invariante checado que não virou finding — mostra a cobertura>
 
 ### Descartado
-- <candidato> — refutado por <prova>
+- <candidato> — refutado por <prova>, com o trecho do output
 
 ### Skipped (já levantado)
 - <autor> `path:line` — <breve>
 
 ### Não coberto
-- <arquivo não lido por inteiro, ou prova que não deu pra executar>
+- <arquivo não lido por inteiro, prova não executada, ou validação local não realizada e por quê>
   (omitir a seção se a cobertura foi total — nunca omitir se não foi)
 
 Aguardando confirmação para publicar.
@@ -154,8 +172,25 @@ Aguardando confirmação para publicar.
 | 🟠 CONFIRMADO sem alcance em produção, ou SUSPEITA que viraria 🔴 | **APPROVE SE** \<condição objetiva e verificável\> |
 | Só 🟡 / ⚪ | **APPROVE** |
 | Não deu pra completar as provas (sem acesso, sem repo, diff grande demais) | **Sem veredito** — declarar o que bloqueou e o que falta |
+| 🔴/🟠 CONFIRMADO cujo fix não pôde ser validado local | **REQUEST CHANGES**, com o motivo da não-validação declarado |
 
 Um veredito nunca é "não sei" disfarçado de APPROVE. Se falta prova, é APPROVE SE ou Sem veredito — com o que falta explícito.
+
+### Passo 6b — Fix: implementar e validar local
+
+**Obrigatório para todo finding 🔴 ou 🟠 CONFIRMADO.** 🟡 e ⚪ vão como suggestion sem validação — o custo de subir infra não se paga para naming e dead code.
+
+Procedimento completo em [`local-validate.md`](local-validate.md). O contrato, em resumo:
+
+1. **Worktree isolado** — `git worktree add` na branch do PR, com submódulos inicializados. Nunca sujar o working tree do usuário, nunca trocar a branch dele.
+2. **Baseline discriminante primeiro** — reproduzir o defeito **antes** do fix. Se não falha sem o fix, o finding cai de volta pra SUSPEITA e não vira proposta.
+3. **Infra local: o `docker compose` do próprio repo.** Nunca compose inventado, nunca Dockerfile "equivalente" que não é o de produção.
+4. **Porta em uso → porta alternativa**, via project name isolado e override gerado fora do repo. Nunca parar container de terceiro para liberar porta.
+5. **Rodar a suíte real** e colar o output. Verde sem compilação, ou com zero testes executados, não é verde.
+6. **Teardown** — derrubar tudo que a review subiu, preservando o que já estava de pé. Container de terceiro que estava parado: **relatar, nunca religar**.
+7. **Delegar quando existir skill de domínio** para aquele serviço — ela conhece as armadilhas locais. O procedimento genérico é fallback, não substituto.
+
+O fix validado **não é commitado nem pushado**. Ele existe para (a) provar que resolve, (b) produzir o texto exato da suggestion.
 
 ### Passo 7 — Esperar
 
@@ -167,29 +202,73 @@ Se o ambiente tem uma skill dedicada a postar em PR (com dedup próprio), delega
 
 Refazer o inventário do passo 1 antes de publicar — pode ter entrado comentário novo entre o draft e a confirmação.
 
+⚠️ **Não poste comentário inline avulso.** Cada `POST /pulls/N/comments` cria **um objeto review `COMMENTED` próprio**: quatro comentários viram quatro reviews na timeline, e review submetido **não pode ser deletado** (422). O caminho é um review **PENDING** com o array inteiro e **um** submit.
+
+**1. Criar o review pendente** — sem campo `event`, o review fica `PENDING`: invisível para os outros, reversível, deletável.
+
 ```bash
 SHA=$(gh pr view <num> --repo <org>/<repo> --json headRefOid -q .headRefOid)
 
-CLAUDE_REVIEW_APPROVED=1 gh api -X POST repos/<org>/<repo>/pulls/<num>/comments \
-  -f body="<finding>" \
-  -f commit_id="$SHA" \
-  -f path="<path>" \
-  -F line=<line> \
-  -f side=RIGHT
+cat > /tmp/review-<num>.json <<'JSON'
+{
+  "commit_id": "SHA_PLACEHOLDER",
+  "body": "<resumo — o veredito e a razão que decidiu>",
+  "comments": [
+    {
+      "path": "src/Handler.kt",
+      "line": 42,
+      "side": "RIGHT",
+      "body": "Descrição do problema.\n\n```suggestion\n    val timeout = Duration.ofSeconds(30)\n```"
+    }
+  ]
+}
+JSON
+
+REVIEW_ID=$(CLAUDE_REVIEW_APPROVED=1 gh api repos/<org>/<repo>/pulls/<num>/reviews \
+  --method POST --input /tmp/review-<num>.json --jq .id)
 ```
 
-`line` precisa ser linha **presente no diff** — a API responde 422 fora dele. Como o passo 3 manda ler o arquivo inteiro, é comum achar finding em linha não tocada: ancorar no hunk mais próximo e citar a linha real no corpo, ou publicar como comentário plano.
-
-Review consolidado:
+**2. Conferir antes de submeter** — ler o pendente de volta e checar cada `line`/`side` contra a posição real do hunk (`gh pr diff <num>`). Errado se deleta e refaz; depois do submit, não.
 
 ```bash
-CLAUDE_REVIEW_APPROVED=1 gh pr review <num> --repo <org>/<repo> \
-  --<approve|request-changes|comment> --body "<summary>"
+gh api repos/<org>/<repo>/pulls/<num>/reviews/$REVIEW_ID/comments \
+  --jq '.[] | {path, line, side, snippet: .body[0:80]}'
+
+# se errou:
+gh api repos/<org>/<repo>/pulls/<num>/reviews/$REVIEW_ID --method DELETE
 ```
 
-Só usar `--approve` se o usuário pediu approve explicitamente.
+**3. Submeter uma única vez:**
 
-⚠️ **Review submetido não pode ser deletado** (422). Duplicata é permanente — daí o inventário refeito.
+```bash
+CLAUDE_REVIEW_APPROVED=1 gh api \
+  repos/<org>/<repo>/pulls/<num>/reviews/$REVIEW_ID/events \
+  --method POST -f event=REQUEST_CHANGES     # ou APPROVE, ou COMMENT
+```
+
+Só usar `APPROVE` se o usuário pediu approve explicitamente.
+
+> Equivalente por MCP do GitHub: `pull_request_review_write` (method `create`) → `add_comment_to_pending_review` (N vezes) → `pull_request_review_write` (method `submit_pending`).
+
+**Formato de cada finding** — nunca prosa:
+
+| Situação | Formato |
+|---|---|
+| Fix cabe em linhas contíguas **dentro do hunk**, lado RIGHT | bloco ` ```suggestion ` — primeira escolha sempre |
+| Linha fora do diff, múltiplos arquivos, ou mudança estrutural | bloco de código com a linguagem + âncora `path:line` + uma frase dizendo por que suggestion não coube |
+| Nenhum dos dois | Não existe |
+
+Regras do `suggestion`:
+
+- O conteúdo **substitui integralmente** as linhas comentadas: indentação exata, e as linhas vizinhas que precisam sobreviver incluídas.
+- Só aplica em linha **presente no diff**, lado RIGHT — fora dele a API responde 422. Como o passo 3 manda ler o arquivo inteiro, é comum achar finding em linha não tocada: ancorar no hunk mais próximo e citar a linha real no corpo.
+- Multi-linha: `start_line` + `line`, e o bloco cobre exatamente esse intervalo.
+- O texto validado no passo 6b é o que entra no bloco — não uma variação reescrita de cabeça.
+- Se um comentário do array der 422, **o POST inteiro falha** e nada é criado. Corrigir a âncora e repetir; nenhum lixo fica para trás. É a vantagem do PENDING.
+
+**Reply em thread existente** é caso legítimo, mas **não escapa da mecânica**: cada reply cria seu próprio objeto review `COMMENTED`. Se a poluição importar, agrupar as respostas num único comentário plano em vez de uma por thread.
+
+Para corrigir o texto de um review **já publicado**: `PUT repos/<org>/<repo>/pulls/<num>/reviews/$REVIEW_ID` edita o body sem criar objeto novo.
 
 ## Gate mecânico — o que o hook cobre
 
@@ -223,6 +302,9 @@ execute as 4 provas e cite a evidência:
   P3 contrato        — confirme o comportamento da lib/framework na doc da versão em uso, não de memória
   P4 discriminação   — ache o grupo de controle que NÃO deveria exibir o sintoma; se exibir, a causa é outra
 
+Monte um ledger com uma linha por prova: finding | prova | comando executado | trecho do
+output. Finding sem linha no ledger não entra no resultado — e não vira suspeita, some.
+
 Avalie também: config efetiva do ambiente acima do default do repo; cada serviço ou
 consumidor tocado pelo contrato mudado; invariantes de ADR/CONTEXT.md que a mudança
 encosta; e se a suite tem discriminating check para o comportamento alterado.
@@ -240,4 +322,6 @@ APPROVE SE <condição objetiva>. Sem hedge — se falta prova, o veredito diz o
 - **PR grande**: pedir confirmação se o diff > 1000 linhas ("vou ler 12 arquivos, ok?")
 - **PR em outro idioma**: responder no idioma do PR
 - **Conflict markers no diff**: bloquear o review e pedir a resolução primeiro
-- **Sem acesso ao repo local** (só o diff): P1 e P2 não fecham → veredito é **Sem veredito**, declarando isso
+- **Sem acesso ao repo local** (só o diff): P1 e P2 não fecham e o passo 6b não roda → veredito é **Sem veredito**, declarando isso
+- **Repo sem `docker compose` e sem skill de domínio**: rodar a suíte que existe (unit, integração) e declarar em "Não coberto" que não houve validação end-to-end
+- **PR é do próprio usuário e ele pede o commit**: aí sim commitar no worktree e pushar — mas só com pedido explícito; o default da regra 10 continua valendo

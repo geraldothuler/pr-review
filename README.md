@@ -9,9 +9,11 @@ Um plugin de code review para [Claude Code](https://claude.com/claude-code) que 
 
 ## Por que
 
-A maioria dos fluxos de review produz uma lista de observações plausíveis. Duas coisas ficam de fora:
+A maioria dos fluxos de review produz uma lista de observações plausíveis. Três coisas ficam de fora:
 
 **Nada derruba o falso positivo.** Um finding que parece certo e está errado custa mais caro que um finding a menos — queima o tempo de quem revisa e desgasta a confiança no review inteiro.
+
+**Nada prova o fix.** A sugestão sai sem nunca ter rodado: é palpite com formatação de código, e quem aplica descobre por conta própria que não fecha.
 
 **Ninguém conclui.** A lista sai; a decisão de aprovar ou não fica órfã.
 
@@ -32,6 +34,32 @@ Prova não executada não conta como passada. Cada finding sai como **CONFIRMADO
 
 P4 é a que mais derruba achado errado: obriga a achar o **grupo de controle** — o caso equivalente que *não* deveria exibir o sintoma. Se ele exibe igual, a causa é outra.
 
+### Ledger de evidência
+
+Uma linha por prova: finding, prova, comando executado, trecho do output. **Sem linha no ledger, o finding some** — não vira "suspeita". SUSPEITA é a saída para prova que faltou declaradamente; inferência silenciosa não tem saída.
+
+### Fix rodado antes de proposto
+
+Todo finding bloqueador ou importante tem o fix implementado e validado antes de virar proposta:
+
+- **Baseline discriminante primeiro** — o teste falha *sem* o fix? Se passa, o finding volta a ser suspeita e não vira proposta. Teste que passa nas duas versões não prova nada.
+- **Infra local com o `docker compose` do próprio repo**, em worktree isolado com submódulos inicializados. Nunca um compose inventado, nunca a branch do usuário.
+- **Porta ocupada vira porta alternativa** por project name isolado e override fora do repo. Nenhum container de terceiro é parado para liberar porta; o que já estava de pé continua de pé.
+- **Teardown do que a review subiu**, e só disso. Container de terceiro encontrado parado se relata, não se religa.
+- **O fix não é commitado na branch de ninguém.** Ele existe para provar que resolve e para produzir o texto exato da proposta.
+
+Não deu para validar é resultado legítimo, declarado em "Não coberto" — e o veredito não vira APPROVE. Fingir que validou, não.
+
+### Proposta sempre acionável
+
+Bloco `suggestion` quando o fix cabe em linhas contíguas dentro do hunk; bloco de código com âncora `path:line` quando não cabe, com a frase dizendo por que não coube. Fix em prosa não existe.
+
+### Post que não polui a timeline
+
+Comentário inline postado um a um cria **um objeto review `COMMENTED` por comentário** — quatro comentários viram quatro reviews, e review submetido não pode ser deletado (a API responde 422).
+
+O fluxo é: review **PENDING** com o array `comments` inteiro → conferir cada `line`/`side` contra o hunk real (errado ainda dá para deletar) → **um** submit.
+
 ### Veredito obrigatório
 
 Todo review termina em decisão, por regra determinística:
@@ -43,6 +71,7 @@ Todo review termina em decisão, por regra determinística:
 | Importante sem alcance em produção, ou suspeita que viraria bloqueador | **APPROVE SE** \<condição objetiva\> |
 | Só menores e opiniões | **APPROVE** |
 | Provas não completadas | **Sem veredito** — declarando o que bloqueou |
+| Confirmado cujo fix não pôde ser validado local | **REQUEST CHANGES**, com o motivo declarado |
 
 Hedge é proibido: "provavelmente", "parece que" e "deveria" não passam. Se a frase precisa de hedge, é suspeita declarada — ou não existe.
 
@@ -94,7 +123,7 @@ Este plugin é **agnóstico de stack**. Ele não carrega regras de Terraform, He
 Se o seu ambiente já tem uma skill de review com as regras da sua organização, as duas se compõem em eixos ortogonais:
 
 - a skill de domínio responde **o que olhar**
-- esta responde **como provar e como concluir**
+- esta responde **como provar, como validar e como concluir**
 
 Rode a de domínio para levantar candidatos, e esta a partir do passo 5 para verificar e decidir.
 
@@ -103,9 +132,12 @@ Rode a de domínio para levantar candidatos, e esta a partir do passo 5 para ver
 ```
 plugins/pr-review/
 ├── .claude-plugin/plugin.json
-├── hooks/hooks.json                # PreToolUse → Bash
+├── hooks/hooks.json                # PreToolUse → Bash|PowerShell
 ├── scripts/preflight-review.sh     # gate dos 4 caminhos
-└── skills/pr-review/SKILL.md       # o fluxo de 8 passos
+├── tests/preflight-review.test.sh  # 11 casos sobre o gate
+└── skills/pr-review/
+    ├── SKILL.md                    # o fluxo de 8 passos
+    └── local-validate.md           # procedimento do passo 6b
 ```
 
 ## Licença

@@ -4,9 +4,10 @@ Review de PR em que cada finding precisa de prova, e o resultado é uma decisão
 
 ## O problema
 
-A maioria dos fluxos de review produz uma **lista de observações plausíveis**. Duas coisas ficam de fora:
+A maioria dos fluxos de review produz uma **lista de observações plausíveis**. Três coisas ficam de fora:
 
 - **Nada derruba o falso positivo.** Um finding que parece certo e está errado custa mais caro que um finding a menos — consome o tempo de quem revisa e desgasta a confiança no review.
+- **Nada prova o fix.** A sugestão sai sem nunca ter rodado: é palpite com formatação de código, e quem aplica descobre por conta própria que não fecha.
 - **Ninguém conclui.** A lista sai, a decisão de aprovar ou não fica órfã.
 
 ## O que este plugin adiciona
@@ -22,9 +23,17 @@ A maioria dos fluxos de review produz uma **lista de observações plausíveis**
 
 Cada finding sai como **CONFIRMADO**, **SUSPEITA** (dizendo qual prova falta) ou **DESCARTADO** (dizendo qual prova refutou).
 
+**Ledger de evidência.** Uma linha por prova, com o comando executado e o trecho do output. **Sem linha no ledger, o finding some** — não vira "suspeita". SUSPEITA é a saída para prova que faltou declaradamente; inferência silenciosa não tem saída.
+
+**Fix rodado antes de proposto.** Todo finding bloqueador ou importante sobe a infra local do próprio repo — o `docker compose` do repo, nunca um inventado — e prova o baseline discriminante: o teste falha **sem** o fix? Se passa, o finding volta a ser suspeita e não vira proposta. Porta ocupada vira project name isolado e override fora do repo; nenhum container de terceiro é parado; o teardown derruba só o que a review subiu. O fix validado não é commitado na branch de ninguém: o que vai pro PR é a proposta.
+
+**Proposta sempre acionável.** Bloco `suggestion` quando o fix cabe no hunk, bloco de código com âncora `path:line` quando não cabe — e a frase dizendo por que não coube. Fix em prosa não existe.
+
 **Veredito obrigatório**, por regra determinística: `APPROVE`, `REQUEST CHANGES`, `APPROVE SE <condição>` ou `Sem veredito`. Hedge é proibido — "provavelmente" e "parece que" não passam.
 
 **Dedup nos 3 endpoints.** Comentário de PR vive em três lugares distintos (`pulls/N/comments`, `issues/N/comments`, `pulls/N/reviews`). Ler só um é a causa mais comum de duplicata. Sem whitelist de autor: bot ou humano, todos contam.
+
+**Post que não polui a timeline.** Comentário inline postado um a um cria **um objeto review `COMMENTED` por comentário** — quatro comentários viram quatro reviews, e review submetido não pode ser deletado (a API responde 422). O fluxo é um review **PENDING** com o array inteiro, conferido contra o hunk real, e **um** submit.
 
 **Gate mecânico nos 4 caminhos de publicação.** O hook incluído exige `CLAUDE_REVIEW_APPROVED=1` para `gh pr review --approve|--request-changes|--comment`, `gh pr merge`, `gh api POST .../pulls/N/comments|reviews` e `gh pr comment`. Os dois últimos costumam ficar de fora dos gates — e são justamente por onde o post prematuro escapa.
 
@@ -80,5 +89,7 @@ pr-review/
 ├── hooks/hooks.json                  # PreToolUse → Bash|PowerShell
 ├── scripts/preflight-review.sh       # gate dos 4 caminhos de publicação
 ├── tests/preflight-review.test.sh    # 11 casos sobre o gate
-└── skills/pr-review/SKILL.md         # o fluxo de 8 passos
+└── skills/pr-review/
+    ├── SKILL.md                      # o fluxo de 8 passos
+    └── local-validate.md             # procedimento do passo 6b (infra local do fix)
 ```
