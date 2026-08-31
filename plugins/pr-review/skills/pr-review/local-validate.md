@@ -21,17 +21,24 @@ Nunca trocar a branch do usuário, nunca sujar o working tree dele.
 ```bash
 REPO=<caminho do clone>
 PR=<número>
-WT="${TMPDIR:-/tmp}/review-$PR-$(basename "$REPO")"
 
-git -C "$REPO" fetch origin "pull/$PR/head:pr-$PR"
-git -C "$REPO" worktree add "$WT" "pr-$PR"
+# RUN é o identificador desta execução, e ele entra em TUDO: worktree, branch temporária,
+# project name do Compose e override. Nome derivado só do PR colide entre duas validações
+# simultâneas do mesmo PR (ou entre um retry e a execução que ainda está de pé), e aí o
+# teardown de uma apaga os volumes da outra.
+RUN="$PR-$(date +%s)-$$"
+WT="${TMPDIR:-/tmp}/review-$RUN"
+BR="review/pr-$RUN"
+
+git -C "$REPO" fetch origin "pull/$PR/head:$BR"
+git -C "$REPO" worktree add "$WT" "$BR"
 
 # worktree NÃO inicializa submódulo — sem isso, código gerado (proto, stubs) some
 # e a ausência parece quebra do PR
 git -C "$WT" submodule update --init --recursive
 ```
 
-Ao final: `git -C "$REPO" worktree remove "$WT" --force` e `git -C "$REPO" branch -D "pr-$PR"`.
+Ao final: `git -C "$REPO" worktree remove "$WT" --force` e `git -C "$REPO" branch -D "$BR"`.
 
 ---
 
@@ -64,7 +71,7 @@ COMPOSE=$(ls docker-compose.y*ml compose.y*ml 2>/dev/null | head -1)
 **Project name isolado** é o que torna o teardown mecânico: tudo que a review subir fica sob um prefixo próprio, e nada do que já estava de pé entra na conta.
 
 ```bash
-PROJ="rv$PR-$(basename "$WT" | tr -cd '[:alnum:]')"
+PROJ="rv$(printf '%s' "$RUN" | tr -cd '[:alnum:]')"
 ```
 
 ---
@@ -85,7 +92,7 @@ docker ps --format '{{.Names}}\t{{.Ports}}' | grep ':<porta>->'
 Para cada porta ocupada, um override **fora do repo** — arquivo dentro do repo vaza no diff e polui o PR:
 
 ```bash
-OVR="${TMPDIR:-/tmp}/review-$PR-ports.yml"
+OVR="${TMPDIR:-/tmp}/review-$RUN-ports.yml"
 cat > "$OVR" <<'YAML'
 services:
   postgres:
@@ -124,13 +131,13 @@ docker compose -p "$PROJ" -f "$COMPOSE" ${OVR:+-f "$OVR"} down -v --remove-orpha
 docker ps -a --filter "label=com.docker.compose.project=$PROJ" --format '{{.Names}}'  # deve sair vazio
 rm -f "$OVR"
 git -C "$REPO" worktree remove "$WT" --force
-git -C "$REPO" branch -D "pr-$PR"
+git -C "$REPO" branch -D "$BR"
 ```
 
 Regras:
 
 - **Some tudo que fugiu do padrão original** — containers do project name da review, override, worktree, branch temporária.
-- **Fica tudo que já estava de pé antes.** Não é da review.
+- **Fica tudo que já estava de pé antes.** Não é da review — e como todo nome carrega o `RUN`, uma validação concorrente do mesmo PR não é tocada.
 - **Container de terceiro encontrado parado: relatar, nunca religar.** Pode ter sido parado de propósito.
 - Recurso efêmero criado fora do Docker (pod de debug em cluster, por exemplo) também é removido — e nomeado no draft.
 

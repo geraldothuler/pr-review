@@ -88,7 +88,7 @@ pr-review/
 ├── .claude-plugin/plugin.json
 ├── hooks/hooks.json                  # PreToolUse → Bash|PowerShell
 ├── scripts/preflight-review.sh       # gate dos 4 caminhos de publicação
-├── tests/preflight-review.test.sh    # 11 casos sobre o gate
+├── tests/preflight-review.test.sh    # 19 casos sobre o gate
 └── skills/pr-review/
     ├── SKILL.md                      # o fluxo de 8 passos
     └── local-validate.md             # procedimento do passo 6b (infra local do fix)

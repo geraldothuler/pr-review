@@ -72,6 +72,18 @@ expect_block "Bash + gh pr comment bloqueia"                         Bash       
 expect_block "Bash + gh pr review --approve bloqueia"                Bash       'gh pr review 123 --approve'
 expect_block "PowerShell + gh pr review --approve bloqueia"          PowerShell 'gh pr review 123 --approve'
 expect_allow "Bash + override inline libera"                         Bash       'CLAUDE_REVIEW_APPROVED=1 gh pr review 123 --approve'
+
+echo "== gh api: escrita bloqueia em qualquer ordem, leitura passa =="
+# `gh` aceita as flags antes ou depois do endpoint. Um regex que fixa a ordem deixava
+# passar a própria forma que o passo 8 recomenda para criar o review pendente.
+expect_block "flags DEPOIS do endpoint (--method POST --input)"      Bash 'gh api repos/o/r/pulls/12/reviews --method POST --input /tmp/review.json --jq .id'
+expect_block "--input depois do endpoint, -X no fim"                 Bash 'gh api repos/o/r/pulls/12/comments --input /tmp/c.json -X POST'
+expect_block "flags ANTES do endpoint (--method POST)"               Bash 'gh api --method POST repos/o/r/pulls/12/reviews --input /tmp/r.json'
+expect_block "--method=POST com igual"                               Bash 'gh api repos/o/r/pulls/12/comments --method=POST -f body=x'
+expect_block "submit do review pendente"                             Bash 'gh api repos/o/r/pulls/12/reviews/99/events --method POST -f event=APPROVE'
+expect_allow "GET com --paginate passa"                              Bash 'gh api repos/o/r/pulls/12/comments --paginate'
+expect_allow "GET com --jq passa"                                    Bash "gh api repos/o/r/pulls/12/reviews --paginate --jq '.[] | {id, state}'"
+expect_allow "DELETE de review pendente não é publicação"            Bash 'gh api repos/o/r/pulls/12/reviews/99 --method DELETE'
 expect_allow "PowerShell + override \$env: libera"                   PowerShell "\$env:CLAUDE_REVIEW_APPROVED='1'; gh pr review 123 --approve"
 
 echo "== acentuação da mensagem (UTF-8, sem dupla codificação) =="

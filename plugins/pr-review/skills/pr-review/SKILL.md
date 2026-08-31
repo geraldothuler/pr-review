@@ -1,6 +1,6 @@
 ---
 name: pr-review
-description: PR code review com verificação profunda antes de concluir — 4 provas por finding contra o codebase, a doc do framework e os serviços tocados, ledger de evidência, fix implementado e validado na infra local do próprio repo, proposta sempre como suggestion, dedup dos 3 endpoints de comentário, e veredito assertivo (approve / request changes). Nunca publica sem confirmação explícita. Use quando pedirem "review PR", "/pr-review", "revisa o PR #X", ou antes de aprovar/comentar um PR.
+description: PR code review com verificação profunda antes de concluir — 4 provas por finding contra o codebase, a doc do framework e os serviços tocados, ledger de evidência, fix implementado e validado na infra local do próprio repo, proposta sempre como suggestion, dedup dos 3 endpoints de comentário, e veredito determinístico (APPROVE / REQUEST CHANGES / APPROVE SE &lt;condição&gt; / Sem veredito). Nunca publica sem confirmação explícita. Use quando pedirem "review PR", "/pr-review", "revisa o PR #X", ou antes de aprovar/comentar um PR.
 user-invocable: true
 ---
 
