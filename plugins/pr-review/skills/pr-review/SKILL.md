@@ -102,11 +102,20 @@ Além das provas por finding, avaliar o **entorno**:
 - **Doc e invariantes.** ADR, `CONTEXT.md`, SPEC ou equivalente que a mudança encosta. Violar invariante documentado é 🔴 por definição.
 - **Testes.** Um teste que passa nas duas versões não prova nada. Exigir o **discriminating check**: o teste falha sem o fix? Atenção a teste que já codifica o bug como comportamento esperado, e a guard novo a montante que torna um teste existente degenerado sem quebrá-lo.
 
-Classificar:
+Classificar em **três** estados, e só três:
 
-- **CONFIRMADO** — 4 provas passaram, com evidência citável
-- **SUSPEITA** — sobreviveu, mas falta prova; dizer **qual** e o que a fecharia
-- **DESCARTADO** — alguma prova refutou; vai pra seção de descartados com o motivo
+| Estado | Quando | Onde vai |
+|---|---|---|
+| **CONFIRMADO** | as 4 provas passaram, com evidência citável | vira finding no draft |
+| **SUSPEITA** | sobreviveu às provas, mas falta uma — e ela é **nomeada** | seção própria, com o que a fecharia |
+| **DESCARTADO** | alguma prova refutou | seção de descartados, com o trecho do output |
+
+Um candidato sem linha no ledger (passo 5b) não é nenhum dos três: **some**.
+
+Dois rótulos deste fluxo que **não** são estado de finding, e não devem ser usados como tal:
+
+- **"Não coberto"** — seção do draft. É cobertura que faltou no review (arquivo não lido inteiro, prova não executável, validação local não feita), não um achado.
+- **"Sem veredito"** — resultado do review inteiro, quando as provas não puderam ser completadas. Nunca se aplica a um finding isolado.
 
 Proibido no draft: "provavelmente", "deve estar", "parece que", "deveria". Se a frase precisa de hedge, é SUSPEITA — ou não existe.
 
