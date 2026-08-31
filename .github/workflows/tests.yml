@@ -1,0 +1,60 @@
+name: tests
+
+# Este repo não tinha CI nenhum: 0 check-runs em qualquer commit, e a suíte do gate só
+# rodava se alguém digitasse. Verde aqui era ausência de sinal.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # A suíte precisa de bash: o caso do caminho de instalação com espaço depende do
+    # word-splitting dele e passa por engano em zsh.
+    shell: bash
+
+jobs:
+  gate:
+    name: gate preflight-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependências do gate
+        run: |
+          bash --version | head -1
+          jq --version
+
+      - name: Sintaxe do script do gate
+        run: bash -n plugins/pr-review/scripts/preflight-review.sh
+
+      - name: Manifests do plugin são JSON válido
+        run: |
+          rc=0
+          for f in .claude-plugin/marketplace.json \
+                   plugins/pr-review/.claude-plugin/plugin.json \
+                   plugins/pr-review/hooks/hooks.json; do
+            jq -e . "$f" > /dev/null || { echo "::error file=$f::JSON inválido"; rc=1; }
+          done
+          exit $rc
+
+      - name: Versão do plugin bate no manifest e no marketplace
+        run: |
+          # O marketplace não carrega version, mas a description dos dois precisa ser a
+          # mesma — foi editada nos dois arquivos hoje e é fácil divergirem.
+          a=$(jq -r .description plugins/pr-review/.claude-plugin/plugin.json)
+          b=$(jq -r '.plugins[0].description' .claude-plugin/marketplace.json)
+          if [ "$a" != "$b" ]; then
+            echo "::error::description divergente entre plugin.json e marketplace.json"
+            printf 'plugin.json:      %s\nmarketplace.json: %s\n' "$a" "$b"
+            exit 1
+          fi
+          echo "ok — description igual nos dois"
+
+      - name: Suíte do gate (os dois lados de cada alvo)
+        run: bash plugins/pr-review/tests/preflight-review.test.sh
